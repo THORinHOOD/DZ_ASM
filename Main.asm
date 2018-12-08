@@ -1,17 +1,23 @@
 format PE GUI 4.0
 entry start
 
-include "C:\Users\1\FASM\INCLUDE\win32ax.inc" 
+include "win32ax.inc" 
 
 section '.text' code readable executable
 
   start:
+        
+        cinvoke GetCommandLine
+        mov [lpCommLine], eax 
+        cinvoke sscanf, [lpCommLine], "%s %lf", s, X 
+        
         finit
+        
         call calc
         
-        invoke sprintf, output, formats, dword[S], dword[S+4]
-        invoke  MessageBox, 0 , output, "Расчёт программы", MB_OK 
-        invoke  ExitProcess,0
+        cinvoke sprintf, output, formats, dword[S], dword[S+4]      
+        cinvoke  MessageBox, 0 , output, "Расчёт программы", MB_OK 
+        cinvoke  ExitProcess,0
         
         proc print
             mov ecx, 6
@@ -28,7 +34,7 @@ section '.text' code readable executable
           iter:
               fld [X]
               fld [T]              
-              call pow2
+              call pow
               
               fstp [XT]
               
@@ -40,7 +46,7 @@ section '.text' code readable executable
               fchs
               fld[T]
              
-              call pow2
+              call pow
               
               fstp [oneT]
               
@@ -91,19 +97,22 @@ section '.text' code readable executable
               ; S + dX
               ; dX
               fstp [res]
+              
               fstp [S]
+              
               fstp st0
               
               fld [T]
               fld1
               faddp st1, st0
               fstp [T]
+              
               jg iter  
           ret
         endp
         
         
-        proc pow2
+        proc pow
           fld1
           fxch st2
           fxch st1
@@ -131,22 +140,7 @@ section '.text' code readable executable
             fstp st0
             ret
         endp
-        
-        proc pow ; возвовдит st0 в степень st1 (использует 2 регистра fpu)
-          fyl2x ;Стек FPU теперь содержит: ST(0)=y*log2(x)
-          fld st0 ;Создаем еще одну копию z
-          frndint   ;Округляем ST(0)=trunc(z)        | ST(1)=z
-          fxch st1;ST(0)=z                             | ST(1)=trunc(z)
-          fsub st0, st1  ;ST(0)=z-trunc(z)        | ST(1)=trunc(z)
-          f2xm1  ;ST(0)=2**(z-trunc(z))-1            | ST(1)=trunc(z)
-          fld1     ;ST(0)=1 ST(1)=2**(z-trunc(z))-1  | ST(2)=trunc(z)
-          faddp st1,st0 ;ST(0)=2**(z-trunc(z))      | ST(1)=trunc(z)
-          fscale ;ST(0)=(2**(z-trunc(z)))*(2**trunc(z))=2**(z)
-          fxch st1
-          fstp st0
-          ret
-        endp
-        
+                
         proc fact ; считает факториал st0, ответ в st0 (использует 3 регистра fpu)  
           fld st0
           fld1
@@ -170,19 +164,17 @@ section '.text' code readable executable
 
 section '.data' data readable writeable
 
-   formats2 db "%d", 0
-   formats db "%1.10f", 0
+   formats db "%lf", 0
    output db 256 dup(?) ; строка для вывода
-   A dd ?
    res dq 0.0
    N dd 6.0
-   X dd -0.8
-   T dd 1.0
+   X dq 0.0
+   T dq 1.0
    S dq 1.0
    
-   XT dd 0.0
-   oneT dd 0.0
-   fT dd 0.0
+   XT dq 0.0
+   oneT dq 0.0
+   fT dq 0.0
    
    num0 dd 0.0
    num1 dd 1.0
@@ -195,8 +187,14 @@ section '.data' data readable writeable
    
    num8m dd -8.0
 
-   error dd 0.1
-
+   error dq 0.001
+   
+   param db '%d'
+   val dd 0
+   
+   lpCommLine dd ? ;
+   s db 256 dup("Командная строка",0) ; командная строка (default)
+   
 section '.idata' import data readable writeable
 
   library kernel,'KERNEL32.DLL',\
@@ -204,10 +202,14 @@ section '.idata' import data readable writeable
     mscvrt,'msvcrt.DLL'
 
   import kernel,\
-    ExitProcess,'ExitProcess'
+    ExitProcess,'ExitProcess',\
+    GetCommandLine,'GetCommandLineA' ; ANSI-функция
+
 
   import user,\
     MessageBox,'MessageBoxA'
 
   import mscvrt,\
-    sprintf,'sprintf' 
+    sprintf,'sprintf',\
+    sscanf,  'sscanf'
+    
